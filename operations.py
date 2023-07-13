@@ -16,9 +16,9 @@ class Layer2qgis(AvralOperation):
             name="converter",
             inputs=[
                 ("webgis_addr", StringType()),
+                ("id_map", StringType()),
                 ("username", StringType()),
                 ("password", StringType()),
-                ("mode", StringType()),
             ],
             outputs=[
                 ("output_file", FileType()),
