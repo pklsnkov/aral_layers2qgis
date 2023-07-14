@@ -90,14 +90,10 @@ def getting_webmap_resources(webgis_addr, creds, id_webmap):
 
     '''
     Получение ресурсов из веб-карты NGW
+    more: https://docs.nextgis.ru/docs_ngweb_dev/doc/developer/resource.html
     '''
 
-    # more: https://docs.nextgis.ru/docs_ngweb_dev/doc/developer/resource.html
-
     layer_position = 0
-
-    webmap_dict = {}
-    layer_list = []
 
     url = f"{webgis_addr}/api/resource/{id_webmap}"
 
@@ -120,30 +116,23 @@ def getting_webmap_resources(webgis_addr, creds, id_webmap):
         'extent_top': data['webmap']['extent_top']
     }
 
-    for item in data:
+    layer_list = []
 
-        layer_position += 1
-
-        if item['webmap']['children']['item_type'] == 'layer':
-
-            layer_info = {}
-
-            if item['webmap']['children']['draw_order_position'] != 0:
-                draw_position = item['webmap']['children']['draw_order_position']
-            else:
-                draw_position = layer_position + 1
-            layer_info['draw_position'] = draw_position
-            layer_info['id'] = item['webmap']['children']['style_parent_id'] # fixme : работает?
-            layer_info['style_id'] = item['webmap']['children']['layer_style_id']
-            layer_info['display_name'] = item['webmap']['children']['display_name'] # fixme : разобраться с именем стиля
-            layer_info['transparency'] = item['webmap']['children']['layer_transparency']
-            layer_info['min_scale_denom']  = item['webmap']['children']['layer_min_scale_denom']
-            layer_info['max_scale_denom'] = item['webmap']['children']['layer_max_scale_denom']
-            layer_info['layer_adapter'] = item['webmap']['children']['layer_adapter']
-
+    for idx, item in enumerate(data['webmap']['children']):
+        if item['item_type'] == 'layer':
+             layer_info = {
+                'draw_position': item['draw_order_position'] or (idx + 1),
+                'id': item['style_parent_id'], # fixme : работает?
+                'style_id': item['layer_style_id'],
+                'display_name': item['display_name'], # fixme : разобраться с именем стиля
+                'transparency': item['layer_transparency'],
+                'min_scale_denom': item['layer_min_scale_denom'],
+                'max_scale_denom': item['layer_max_scale_denom'],
+                'layer_adapter': item['layer_adapter']
+             }
             layer_list.append(layer_info)
 
-        layer_list.reverse()
+    layer_list.reverse()
 
     return webmap_dict, layer_list
 
