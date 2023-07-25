@@ -244,7 +244,7 @@ def create_qgis_project(webgis_addr, login, folder_path, webmap_dict: dict, laye
 
 
         except:
-            default_style = 'proba.qml'
+            default_style = 'default.qml'
             qml_path = os.path.join('default_files', default_style)
             qml_tree = ET.parse(qml_path)
             qml_root = qml_tree.getroot()
