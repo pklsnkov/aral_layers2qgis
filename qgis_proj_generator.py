@@ -1,59 +1,14 @@
 import xml.etree.ElementTree as ET
+import os
 
-webgis_addr = 'test'
-login = 'chel'
-folder_path = "C:\\Users\\AntanWind\\PycharmProjects\\aral_layers2qgis\\test_folder"
-webmap_dict = {
-    'name': 'My Web Map',
-    'creation_date': '2023-07-20',
-    "extent_left": '-180',
-    "extent_right": '180',
-    "extent_bottom": '-90',
-    "extent_top": '90',
-}
 
-layer_list = [
-    {
-        "item_type": "layer",
-        "display_name": "Terrain",
-        "layer_enabled": True,
-        "layer_identifiable": False,
-        "layer_transparency": None,
-        "layer_style_id": 10,
-        "style_parent_id": 5,
-        "layer_min_scale_denom": 1000,
-        "layer_max_scale_denom": 5000,
-        "layer_adapter": "terrain_data",
-        "draw_order_position": 1,
-        "legend_symbols": ["Mountains", "Hills", "Plains"],
-        "payload": None,
-        'geometry_type': 'MULTIPOLYGON',
-        'layername': '2',
-        file
-    },
-    {
-        "item_type": "layer",
-        "display_name": "Cities",
-        "layer_enabled": True,
-        "layer_identifiable": True,
-        "layer_transparency": 0.5,
-        "layer_style_id": 8,
-        "style_parent_id": 5,
-        "layer_min_scale_denom": 5000,
-        "layer_max_scale_denom": 20000,
-        "layer_adapter": "point",
-        "draw_order_position": 2,
-        "legend_symbols": ["City Center", "Suburbs"],
-        "payload": None
-    },
-]
+def create_qgis_project(webgis_addr, login, folder_path, webmap_dict: dict, layer_list: list):
 
-def create_qgis_project(webgis_addr, login, folder_path, webmap_dict, layer_list: list):
-
-    qgis_tree = ET.parse('base_project.qgs')
+    # заполнение основной информации о файле qgs
+    qgis_tree = ET.parse('default_files\\base_project.qgs')
     root = qgis_tree.getroot()
-
     root_dict = {
+        'saveDateTime':'',
         'version': '3.16.16-Hannover',
         'saveUser': str(login.split('@')[0]),
         'saveUserFull': str(login.split('@')[0]),
@@ -75,6 +30,10 @@ def create_qgis_project(webgis_addr, login, folder_path, webmap_dict, layer_list
         elif layer['file_format'] == 'jpeg':
             raster_list.append(layer)
 
+    for file in os.listdir(folder_path):
+        if file.endswith('qml'):
+            style_list.append(file)
+
     for vector_layer in vector_list:  # todo : сделать для растров
         layer_element = ET.SubElement(layer_tree_group, 'layer-tree-layer')
         layer_element.set('legend_split_behavior', "0")
@@ -84,9 +43,10 @@ def create_qgis_project(webgis_addr, login, folder_path, webmap_dict, layer_list
         layer_element.set('id', f"{vector_layer['display_name']}_{vector_layer['style_parent_id']}")
         layer_element.set('expanded', "1")
         layer_element.set('providerKey', "ogr")
-        layer_element.set('source', f"./{folder_path}/{vector_layer['display_name']}.gpkg|"
+        layer_element.set('source', f"./{vector_layer['display_name']}.gpkg|"
                                     f"layername={vector_layer['display_name']}|"
                                     f"geometrytype={vector_layer['geometry_type']}")
+        # layer_element.set('source', f"{vector_layer['display_name']}.gpkg")
         custom_properties = ET.SubElement(layer_element, "customproperties")
         option_elem = ET.SubElement(custom_properties, 'Option')
 
@@ -147,7 +107,155 @@ def create_qgis_project(webgis_addr, login, folder_path, webmap_dict, layer_list
     # todo : main-annotation-layer
 
 
-    # todo : projectlayers
+    # создание и заполнение элемента projectlayers
+    projectlayers = root.find('projectlayers')
+    for vector_layer in vector_list:
+        maplayer = ET.SubElement(projectlayers, 'maplayer')
+        maplayer_dict = {
+            'simplifyLocal': '1',
+            'simplifyMaxScale': '1',
+            'maxScale': f"{vector_layer['layer_max_scale_denom']}",
+            'type': 'vector',
+            'legendPlaceholderImage': '',
+            'minScale': f"{vector_layer['layer_min_scale_denom']}",
+            'autoRefreshTime': '0',
+            'styleCategories': 'AllStyleCategories',
+            'refreshOnNotifyEnabled': '0',
+            'autoRefreshEnabled': '0',
+            'simplifyDrawingHints': '0' if vector_layer['geometry_type'] == 'POINT' else '1',
+            'geometry': f"{vector_layer['geometry_type']}".casefold().capitalize(),
+            'readOnly': '0',
+            'symbologyReferenceScale': '-1',
+            'labelsEnabled': '1',
+            'hasScaleBasedVisibilityFlag': '1',
+            'refreshOnNotifyMessage': '',
+            'simplifyAlgorithm': '1',
+        }
+        for key, value in maplayer_dict.items():
+            maplayer.set(key, value)
+
+        extent = ET.SubElement(maplayer, 'extent')
+        ET.SubElement(extent, 'xmin').text = ''
+        ET.SubElement(extent, 'ymin').text = ''
+        ET.SubElement(extent, 'xmax').text = ''
+        ET.SubElement(extent, 'ymax').text = ''
+
+        ET.SubElement(maplayer, 'id').text = f"{vector_layer['display_name']}_{vector_layer['style_parent_id']}"
+
+        ET.SubElement(maplayer, 'datasource').text = f"./{vector_layer['display_name']}.gpkg"
+
+        ET.SubElement(maplayer, 'layername').text = f"{vector_layer['display_name']}"
+
+        srs = ET.SubElement(maplayer, 'srs')
+        spatialrefsys_elem = ET.SubElement(srs, 'spatialrefsys')
+        ET.SubElement(spatialrefsys_elem, 'wkt').text = "GEOGCRS['WGS 84'," \
+                                                        "DATUM['World Geodetic System 1984'," \
+                                                        "ELLIPSOID['WGS 84',6378137,298.257223563," \
+                                                        "LENGTHUNIT['metre',1]]]," \
+                                                        "PRIMEM['Greenwich',0," \
+                                                        "ANGLEUNIT['degree',0.0174532925199433]]," \
+                                                        "CS[ellipsoidal,2]," \
+                                                        "AXIS['geodetic latitude (Lat)',north,ORDER[1]," \
+                                                        "ANGLEUNIT['degree',0.0174532925199433]]," \
+                                                        "AXIS['geodetic longitude (Lon)',east,ORDER[2]," \
+                                                        "ANGLEUNIT['degree',0.0174532925199433]]," \
+                                                        "USAGE[SCOPE['unknown']," \
+                                                        "AREA['World']," \
+                                                        "BBOX[-90,-180,90,180]]," \
+                                                        "ID['EPSG',4326]]"
+        ET.SubElement(spatialrefsys_elem, 'proj4').text = "+proj=longlat +datum=WGS84 +no_defs"
+        ET.SubElement(spatialrefsys_elem, 'srsid').text = '3452'
+        ET.SubElement(spatialrefsys_elem, 'srid').text = '4326'
+        ET.SubElement(spatialrefsys_elem, 'authid').text = 'EPSG:4326'
+        ET.SubElement(spatialrefsys_elem, 'projectionacronym').text = 'longlat'
+        ET.SubElement(spatialrefsys_elem, 'ellipsoidacronym').text = 'EPSG:7030'
+        ET.SubElement(spatialrefsys_elem, 'geographicflag').text = 'true'
+
+        provider = ET.SubElement(maplayer, 'provider')
+        provider.set('encoding', 'utf-8')
+        provider.text = 'ogr'
+        ET.SubElement(maplayer, 'vectorjoins')
+        ET.SubElement(maplayer, 'layerDependencies')
+        ET.SubElement(maplayer, 'dataDependencies')
+        ET.SubElement(maplayer, 'expressionfields')
+
+        map_layer_style_manager = ET.SubElement(maplayer, 'map-layer-style-manager')
+        for style in style_list:
+            if vector_layer['display_name'] in style:
+                map_layer_style_manager.set('current', f"{style.split('_style_')[0]}")
+                ET.SubElement(map_layer_style_manager, 'map_layer_style').set('name', f"{style.split('_style_')[0]}")
+            else:
+                map_layer_style_manager.set('current', 'по умолчанию')
+                ET.SubElement(map_layer_style_manager, 'map_layer_style').set('name', 'по умолчанию')
+
+        ET.SubElement(maplayer, 'auxiliaryLayer')
+
+        flags = ET.SubElement(maplayer, 'flags')
+        ET.SubElement(flags, 'Identifiable').text = '1'
+        ET.SubElement(flags, 'Removable').text = '1'
+        ET.SubElement(flags, 'Searchable').text = '1'
+
+        temporal = ET.SubElement(maplayer, 'temporal')
+        temporal_dict = {
+            'fixedDuration': '0',
+            'accumulate': '0',
+            'endExpression': '',
+            'mode': '0',
+            'enabled': '0',
+            'durationField': '',
+            'endField': '',
+            'startField': '',
+            'durationUnit': 'min',
+        }
+        for key, value in temporal_dict.items():
+            temporal.set(key, value)
+
+        fixedRange = ET.SubElement(temporal, 'fixedRange')
+        ET.SubElement(fixedRange, 'start')
+        ET.SubElement(fixedRange, 'finish')
+
+        # renderer_v2 = ET.SubElement(maplayer, 'renderer-v2')
+        # renderer_v2_dict = {
+        #     'forceraster': '0',
+        #     'symbollevels': '0',
+        #     'enableorderby': '0',
+        #     'type': 'singleSymbol',
+        # }
+        # for key, value in renderer_v2_dict.items():
+        #     renderer_v2.set(key, value)
+
+        try:
+            for style in style_list:
+                if vector_layer['display_name'] == style.split('_style_')[0]:
+                    qml_path = os.path.join(folder_path, f'{style}')
+                    qml_tree = ET.parse(qml_path)
+                    qml_root = qml_tree.getroot()
+                    renderer_v2 = qml_root.find('renderer-v2')
+                    maplayer.append(renderer_v2)
+                    # customproperties = qml_root.find('customproperties')
+                    # maplayer.append(customproperties)
+                    # labelattributes = qml_root.find('labelattributes')
+                    # maplayer.append(labelattributes)
+
+                    # todo : информация о подписях не копируется так просто
+                    # todo : файл со стилем не отображается в qgis'е, без стиля всё работает
+
+
+
+
+        except:
+            default_style = 'proba.qml'
+            qml_path = os.path.join('default_files', default_style)
+            qml_tree = ET.parse(qml_path)
+            qml_root = qml_tree.getroot()
+            renderer_v2 = qml_root.find('renderer-v2')
+            maplayer.append(renderer_v2)
+
+
+        ET.SubElement(maplayer, 'blendMode').text = '0'
+        ET.SubElement(maplayer, 'featureBlendMode').text = '0'
+        ET.SubElement(maplayer, 'layerOpacity').text = '1'
+        ET.SubElement(maplayer, 'SingleCategoryDiagramRenderer').text = '0'
 
 
     layerorder = root.find('layerorder')
@@ -161,4 +269,6 @@ def create_qgis_project(webgis_addr, login, folder_path, webmap_dict, layer_list
     projectMetadata.find('author').text = ''
     projectMetadata.find('creation').text = ''
 
-    qgis_tree.write(f'QGIS project from {webgis_addr}.qgs')
+    ET.indent(qgis_tree, space='  ', level=0)
+
+    return qgis_tree.write(f'{folder_path}\\QGIS project.qgs', encoding='UTF-8')
